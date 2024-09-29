@@ -1,6 +1,7 @@
 
-# Google Scholar Author Scraper
 
+# Google Scholar Author Scraper
+### note that this script is under development & is rapidly changing.
 This repository contains a Python script that scrapes author profiles from Google Scholar using Selenium WebDriver. It extracts author IDs based on a given research category, navigates through author profiles, and saves the last page of the author's publication list in HTML format.
 
 ## Project Collaborators
