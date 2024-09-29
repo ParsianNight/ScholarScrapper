@@ -22,15 +22,14 @@ def create_driver():
     return driver
 
 # Function to scrape author IDs
-def scrape_google_scholar_authors(num_pages, categoryName):
+def scrape_google_scholar_authors(driver, num_pages, categoryName):
     all_author_ids = []
 
-    driver = create_driver()
     try:
         # Open the Google Scholar Author Search page
         driver.get('https://scholar.google.com/citations?view_op=search_authors')
 
-        # Search for "computer science"
+        # Search for the category (e.g., "computer science" or "physics")
         search_box = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.NAME, 'mauthors'))
         )
@@ -44,7 +43,7 @@ def scrape_google_scholar_authors(num_pages, categoryName):
             author_elements = driver.find_elements(By.CSS_SELECTOR, 'h3.gs_ai_name a')
 
             for author in author_elements:
-                href = author.get_attribute('href')  # Now we get the href from the <a> tag
+                href = author.get_attribute('href')  # Get the href from the <a> tag
                 if 'user=' in href:
                     user_id = href.split('user=')[1].split('&')[0]
                     print(user_id)
@@ -52,7 +51,6 @@ def scrape_google_scholar_authors(num_pages, categoryName):
 
             # Try to click on the 'Next' button for pagination
             try:
-                # Wait for the 'Next' button to be present and clickable
                 next_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, 'button.gs_btnPL.gsc_pgn_pnx'))
                 )
@@ -62,17 +60,85 @@ def scrape_google_scholar_authors(num_pages, categoryName):
                 break
     except Exception as e:
         print(f"Error during scraping: {e}")
-    finally:
-        driver.quit()
-
+    
     return all_author_ids
 
-# Example usage
-num_pages = 3  # Number of pages you want to scrape
-author_ids = scrape_google_scholar_authors(num_pages,'physics')
 
+# Function to browse the user's profile and extract all paper data using the same WebDriver session
+def browse_profile(driver, user_id):
+    all_results = []
+    base_url = f'https://scholar.google.com/citations?hl=en&user={user_id}&cstart={{}}&pagesize=100'
+
+    # Initial URL to load the profile
+    url = base_url.format(0)
+    driver.get(url)
+
+    # Wait for the profile page to load
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'div#gsc_bdy'))
+    )
+
+    last_page_html = None  # Placeholder for the last page
+
+    while True:
+        # Get the current page's HTML content
+        page_html = driver.page_source
+
+        # Store the current page HTML as the last one (will keep replacing until the end)
+        last_page_html = page_html
+
+        # Introduce a random delay to avoid being blocked
+        time.sleep(random.uniform(2, 5))
+
+        # Try to find and click the "Show more" button to load additional papers
+        try:
+            # Wait for the "Show more" button to be clickable
+            show_more_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, 'gsc_bpf_more'))
+            )
+
+            # If the button is disabled, we've reached the last page
+            if show_more_button.get_attribute('disabled'):
+                print(f"Reached the last page for user {user_id}")
+                break
+
+            # Click the "Show more" button to load more papers
+            show_more_button.click()
+            
+            # Introduce a delay after clicking
+            time.sleep(random.uniform(2, 5))
+
+        except Exception as e:
+            print(f"No more papers to load or error for user {user_id}: {e}")
+            break
+
+    return last_page_html
+
+
+# Example usage
+driver = create_driver()  # Create a WebDriver session
+
+# Scrape author IDs
+num_pages = 1  # Number of pages you want to scrape
+author_ids = scrape_google_scholar_authors(driver, num_pages, 'nanotoxicology')
+
+# Browse each author's profile and extract papers
+for author_id in author_ids:
+    print(f"Processing author: {author_id}")
+    last_page_html = browse_profile(driver, author_id)
+
+    # Save only the last page's HTML content to a file
+    with open(f'user_{author_id}_last_page.html', 'w', encoding='utf-8') as file:
+        file.write(last_page_html)
+    print(f"Saved last page for user {author_id}")
+
+
+# Close the WebDriver after finishing
+driver.quit()
+print('kokos')
 # Convert to DataFrame
 df = pd.DataFrame(author_ids, columns=['Author_ID'])
+
 print(df)
 
 # Save to CSV
